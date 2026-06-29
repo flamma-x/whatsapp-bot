@@ -48,7 +48,7 @@ export async function GET(request: Request) {
  * We always return 200 quickly so Meta doesn't retry.
  */
 export async function POST(request: Request) {
-  const ownerNumber = process.env.OWNER_WHATSAPP_NUMBER;
+  const ownerNumber = process.env.WHATSAPP_OWNER_NUMBER;
 
   let body: unknown;
   try {
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
   // Message from a contact: draft a reply and ask the owner to approve it.
   if (!ownerNumber) {
-    console.error("OWNER_WHATSAPP_NUMBER is not set — cannot request approval.");
+    console.error("WHATSAPP_OWNER_NUMBER is not set — cannot request approval.");
     return NextResponse.json({ ok: true });
   }
 

@@ -16,7 +16,7 @@ Cloud API · in-memory store (no database).
 1. A contact messages your WhatsApp Business number.
 2. Meta POSTs a webhook to `/api/webhook`.
 3. The server asks Claude for a draft reply and sends it to your
-   `OWNER_WHATSAPP_NUMBER`, quoting the contact's message.
+   `WHATSAPP_OWNER_NUMBER`, quoting the contact's message.
 4. You reply on WhatsApp:
    - `"send"` → the Claude draft is forwarded to the original contact.
    - anything else → your text is forwarded to the original contact instead.
@@ -51,7 +51,7 @@ lib/
    | `WHATSAPP_TOKEN`           | Meta App Dashboard → WhatsApp → API Setup (access token)     |
    | `WHATSAPP_PHONE_NUMBER_ID` | Same page — the **Phone number ID**, not the phone number    |
    | `WHATSAPP_VERIFY_TOKEN`    | Any random string you invent (you paste it into Meta too)    |
-   | `OWNER_WHATSAPP_NUMBER`    | Your personal WhatsApp number, E.164 without '+'              |
+   | `WHATSAPP_OWNER_NUMBER`    | Your personal WhatsApp number, E.164 without '+'              |
    | `ANTHROPIC_API_KEY`        | https://console.anthropic.com → API keys                     |
 
 2. **Run locally**
