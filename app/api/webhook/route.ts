@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { parseIncomingMessage, sendMessage } from "@/lib/whatsapp";
-import { generateDraft } from "@/lib/claude";
+import { generateDraft, chatReply } from "@/lib/claude";
 import {
   addPending,
-  getOldestPending,
+  appendOwnerTurn,
   getPending,
   removePending,
 } from "@/lib/store";
@@ -41,9 +41,11 @@ export async function GET(request: Request) {
  *
  * - Message from a contact: ask Claude for a draft, send it to the owner's
  *   WhatsApp number for approval.
- * - Message from the owner: treat it as a reply to the pending approval it
- *   quotes (or, if not quoted, the oldest pending one). "send" forwards the
- *   Claude draft as-is; any other text is forwarded verbatim instead.
+ * - Message from the owner that swipe-replies (quotes) a pending approval:
+ *   "send" forwards the Claude draft as-is; any other text is forwarded
+ *   verbatim to the original contact instead.
+ * - Any other message from the owner: a direct live chat with Claude — Claude
+ *   replies straight back to the owner.
  *
  * We always return 200 quickly so Meta doesn't retry.
  */
@@ -67,25 +69,36 @@ export async function POST(request: Request) {
     !!ownerNumber && normalize(message.from) === normalize(ownerNumber);
 
   if (fromOwner) {
-    const approval =
-      (message.replyToId && getPending(message.replyToId)) ??
-      getOldestPending();
+    // If the owner swipe-replied to a pending approval, treat it as approval:
+    // "send" forwards Claude's draft; anything else forwards their text.
+    const approval = message.replyToId
+      ? getPending(message.replyToId)
+      : undefined;
 
-    if (!approval) {
-      // Nothing pending — ignore stray messages from the owner.
+    if (approval) {
+      const reply =
+        message.text.trim().toLowerCase() === "send"
+          ? approval.draftText
+          : message.text.trim();
+
+      try {
+        await sendMessage(approval.from, reply);
+        removePending(approval.id);
+      } catch (err) {
+        console.error("Forward to original sender failed:", err);
+      }
+
       return NextResponse.json({ ok: true });
     }
 
-    const reply =
-      message.text.trim().toLowerCase() === "send"
-        ? approval.draftText
-        : message.text.trim();
-
+    // Otherwise it's a direct live chat with Claude.
     try {
-      await sendMessage(approval.from, reply);
-      removePending(approval.id);
+      const history = appendOwnerTurn({ role: "user", content: message.text });
+      const reply = await chatReply(history);
+      appendOwnerTurn({ role: "assistant", content: reply });
+      await sendMessage(message.from, reply);
     } catch (err) {
-      console.error("Forward to original sender failed:", err);
+      console.error("Owner chat reply failed:", err);
     }
 
     return NextResponse.json({ ok: true });

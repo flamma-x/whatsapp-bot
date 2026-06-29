@@ -37,3 +37,36 @@ export async function generateDraft(incomingText: string): Promise<string> {
 
   return text || "[Could not generate a draft — write the reply manually.]";
 }
+
+const CHAT_SYSTEM_PROMPT = `You are Claude, the personal WhatsApp assistant of a production coordinator working in the Lebanese film and TV industry. You are chatting directly with the coordinator (the owner), one-on-one.
+
+How to chat:
+- This is a WhatsApp conversation — keep replies short, natural, and conversational, like texting. Usually 1-4 sentences.
+- Be warm, quick, and genuinely helpful. You can help with anything: drafting messages, answering questions, planning shoots, brainstorming, working through problems.
+- Match the owner's language. If they write in Arabic (including Lebanese Arabic / Arabizi), reply in the same style. If English, reply in English. If mixed, mirror the mix.
+- You understand the film/TV production world (call times, locations, crew, equipment, permits, budgets), but you're a general assistant too.
+- Don't over-explain or pad. No corporate fluff.`;
+
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+/**
+ * Generate a direct conversational reply for the owner chatting with the bot.
+ * `history` is the recent conversation (oldest first), ending with the owner's
+ * latest message.
+ */
+export async function chatReply(history: ChatTurn[]): Promise<string> {
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: CHAT_SYSTEM_PROMPT,
+    messages: history.map((t) => ({ role: t.role, content: t.content })),
+  });
+
+  const text = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("")
+    .trim();
+
+  return text || "…";
+}

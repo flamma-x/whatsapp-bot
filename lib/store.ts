@@ -20,14 +20,23 @@ export type PendingApproval = {
   createdAt: number;
 };
 
-// `globalThis` keeps the Map alive across hot-reloads in `next dev`.
+/** A single turn in the owner's direct chat with the bot. */
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+const MAX_OWNER_HISTORY = 20;
+
+// `globalThis` keeps these alive across hot-reloads in `next dev`.
 const globalForStore = globalThis as unknown as {
   __pending?: Map<string, PendingApproval>;
+  __ownerChat?: ChatTurn[];
 };
 
 const pending: Map<string, PendingApproval> =
   globalForStore.__pending ?? new Map();
 if (!globalForStore.__pending) globalForStore.__pending = pending;
+
+const ownerChat: ChatTurn[] = globalForStore.__ownerChat ?? [];
+if (!globalForStore.__ownerChat) globalForStore.__ownerChat = ownerChat;
 
 export function addPending(approval: PendingApproval): void {
   pending.set(approval.id, approval);
@@ -37,15 +46,15 @@ export function getPending(id: string): PendingApproval | undefined {
   return pending.get(id);
 }
 
-/** Oldest pending approval, used as a fallback when the owner doesn't quote a specific message. */
-export function getOldestPending(): PendingApproval | undefined {
-  let oldest: PendingApproval | undefined;
-  for (const approval of pending.values()) {
-    if (!oldest || approval.createdAt < oldest.createdAt) oldest = approval;
-  }
-  return oldest;
-}
-
 export function removePending(id: string): void {
   pending.delete(id);
+}
+
+/** Append a turn to the owner's chat history and return the (trimmed) history. */
+export function appendOwnerTurn(turn: ChatTurn): ChatTurn[] {
+  ownerChat.push(turn);
+  if (ownerChat.length > MAX_OWNER_HISTORY) {
+    ownerChat.splice(0, ownerChat.length - MAX_OWNER_HISTORY);
+  }
+  return [...ownerChat];
 }

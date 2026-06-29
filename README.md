@@ -1,10 +1,12 @@
-# WhatsApp Claude Draft Bot
+# WhatsApp Claude Bot
 
-When someone messages your WhatsApp Business number, Meta sends a webhook to this
-app. The app asks Claude to draft a reply (as a Lebanese-film-industry production
-coordinator), then sends that draft to **your personal WhatsApp number** for
-approval. Reply "send" to forward the draft as-is, or send any other text and
-that's forwarded to the original contact instead.
+A WhatsApp bot powered by Claude with two modes on the same business number:
+
+- **Live chat** — when *you* (the owner) message the bot, Claude replies to you
+  directly, with short-term conversation memory. A personal assistant in your chat.
+- **Draft & approve** — when *someone else* messages the bot, Claude drafts a
+  reply (as a Lebanese-film-industry production coordinator) and sends it to your
+  personal number for approval before anything goes back to the contact.
 
 **Stack:** Next.js (App Router) · Claude API (`claude-sonnet-4-6`) · Meta WhatsApp
 Cloud API · in-memory store (no database).
@@ -13,16 +15,14 @@ Cloud API · in-memory store (no database).
 
 ## How it works
 
-1. A contact messages your WhatsApp Business number.
-2. Meta POSTs a webhook to `/api/webhook`.
-3. The server asks Claude for a draft reply and sends it to your
-   `WHATSAPP_OWNER_NUMBER`, quoting the contact's message.
-4. You reply on WhatsApp:
-   - `"send"` → the Claude draft is forwarded to the original contact.
-   - anything else → your text is forwarded to the original contact instead.
-5. If you swipe-reply (quote) a specific approval message, it resolves to that
-   contact even if other approvals are pending; otherwise it falls back to the
-   oldest pending one.
+1. Meta POSTs every inbound message to `/api/webhook`.
+2. **If the sender is `WHATSAPP_OWNER_NUMBER`:**
+   - If the message **swipe-replies (quotes) a pending approval** → it's an
+     approval: `"send"` forwards Claude's draft to the original contact; any
+     other text forwards that text instead.
+   - Otherwise → it's a **direct chat**; Claude replies straight back to you.
+3. **If the sender is anyone else:** Claude drafts a reply and sends it to your
+   `WHATSAPP_OWNER_NUMBER` for approval (swipe-reply the draft to approve/edit).
 
 ## Project layout
 
@@ -32,9 +32,9 @@ app/
     webhook/route.ts   GET (Meta verify) + POST (incoming/owner messages → Claude → approval/forward)
   page.tsx             simple status page
 lib/
-  claude.ts            calls Claude with the coordinator system prompt
+  claude.ts            generateDraft (coordinator) + chatReply (owner live chat)
   whatsapp.ts          parse inbound webhooks + send via Cloud API
-  store.ts             in-memory pending-approval Map (resets on redeploy)
+  store.ts             in-memory pending approvals + owner chat history (resets on redeploy)
 ```
 
 ## Setup
