@@ -4,6 +4,7 @@ import { generateDraft, chatReply } from "@/lib/claude";
 import {
   addPending,
   appendOwnerTurn,
+  getLatestPending,
   getPending,
   removePending,
 } from "@/lib/store";
@@ -69,17 +70,23 @@ export async function POST(request: Request) {
     !!ownerNumber && normalize(message.from) === normalize(ownerNumber);
 
   if (fromOwner) {
-    // If the owner swipe-replied to a pending approval, treat it as approval:
-    // "send" forwards Claude's draft; anything else forwards their text.
-    const approval = message.replyToId
+    const trimmed = message.text.trim();
+    const isSend = trimmed.toLowerCase() === "send";
+
+    // Approval, two ways:
+    //  1) Swipe-reply (quote) a specific pending draft — targets that contact,
+    //     even if several are pending. "send" forwards Claude's draft; any other
+    //     text forwards your edited text instead.
+    //  2) Plain "send" with no quote — approves the most recent pending draft.
+    //     (Custom edits require a swipe-reply, so a normal chat message can never
+    //     be forwarded to a contact by accident.)
+    const quoted = message.replyToId
       ? getPending(message.replyToId)
       : undefined;
+    const approval = quoted ?? (isSend ? getLatestPending() : undefined);
 
     if (approval) {
-      const reply =
-        message.text.trim().toLowerCase() === "send"
-          ? approval.draftText
-          : message.text.trim();
+      const reply = isSend ? approval.draftText : trimmed;
 
       try {
         await sendMessage(approval.from, reply);
@@ -113,7 +120,7 @@ export async function POST(request: Request) {
   try {
     const draftText = await generateDraft(message.text);
 
-    const approvalText = `New message from ${message.fromName} (${message.from}):\n"${message.text}"\n\nSuggested reply:\n${draftText}\n\nReply "send" to use this, or send your own reply text instead.`;
+    const approvalText = `New message from ${message.fromName} (${message.from}):\n"${message.text}"\n\nSuggested reply:\n${draftText}\n\nType "send" to use this reply. To edit, swipe-reply to this message with your own text.`;
 
     const wamid = await sendMessage(ownerNumber, approvalText);
 

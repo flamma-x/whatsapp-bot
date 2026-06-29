@@ -50,6 +50,19 @@ export function removePending(id: string): void {
   pending.delete(id);
 }
 
+/** Most recently created pending approval, if any. */
+export function getLatestPending(): PendingApproval | undefined {
+  let latest: PendingApproval | undefined;
+  for (const approval of pending.values()) {
+    if (!latest || approval.createdAt > latest.createdAt) latest = approval;
+  }
+  return latest;
+}
+
+export function pendingCount(): number {
+  return pending.size;
+}
+
 /** Append a turn to the owner's chat history and return the (trimmed) history. */
 export function appendOwnerTurn(turn: ChatTurn): ChatTurn[] {
   ownerChat.push(turn);
